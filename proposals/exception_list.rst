@@ -101,45 +101,77 @@ Specification
   class exception_list : public exception
   {
     public:
-      typedef /* unspecified */ iterator;
-      typedef /* unspecified */ size_type;
+      typedef /*** unspecified ***/ iterator;
+      typedef /*** unspecified ***/ size_type;
+
+      const char* what() const noexcept override;
+
+      /////////////////////////////////////////////////////////////////////////
+      // CONSTRUCTORS
+
+      exception_list(const exception_list& other);
+
+      exception_list(exception_list&&) = delete;
+
+      exception_list(exception_ptr e);
+      exception_list(const exception_list& original, exception_ptr e);
+
+      template<class InputIterator>
+      exception_list(InputIterator first, InputIterator last);
+      template<class InputIterator>
+      exception_list(const exception_list& original,
+                     InputIterator first, InputIterator last);
+
+      exception_list(initializer_list<exception_ptr> list);
+      exception_list(const exception_list& original,
+                     initializer_list<exception_ptr> list);
+
+      /////////////////////////////////////////////////////////////////////////
+      // QUERY INTERFACE 
 
       size_type size() const noexcept;
 
       iterator begin() const noexcept;
       iterator end() const noexcept;
 
-      char const* what() const noexcept override;
+      iterator cbegin() const noexcept;
+      iterator cend() const noexcept;
   };
 
   }
 
 ..
 
+FIXME: Exception gurantees are neede for all the constructors.
+
+FIXME: We should discuss complexity gurantees for all the constructors.
+
+FIXME: These notes need to be updated.
+
 1.) The class ``exception_list`` owns a sequence of ``exception_ptr`` objects.
 
 2.) The type ``exception_list::iterator`` shall fulfill the requirements of
 ``ForwardIterator``.
 
-3.) ``size_type size() const noexcept;``
+3.) ``const char* what() const noexcept override;``
 
-  4.) *Returns*: The number of ``exception_ptr`` objects contained within the
+  4.) *Returns*: An implementation-defined NTBS.
+
+5.) ``size_type size() const noexcept;``
+
+  6.) *Returns*: The number of ``exception_ptr`` objects contained within the
   ``exception_list``.
 
-  5.) *Complexity*: Constant time.
+  7.) *Complexity*: Constant time.
 
-6.) ``iterator begin() const noexcept;``
+8.) ``iterator begin() const noexcept;``
 
-  7.) *Returns*: An iterator referring to the first ``exception_ptr`` object
+  9.) *Returns*: An iterator referring to the first ``exception_ptr`` object
   contained within the ``exception_list``.
 
-8.) ``iterator end() const noexcept;``
+10.) ``iterator end() const noexcept;``
 
-  9.) *Returns*: An iterator that is past the end of the owned sequence.
-
-10.) ``char const* what() const noexcept override;``
-
-  11.) *Returns*: An implementation-defined NTBS.
+  11.) *Returns*: An iterator that is past the end of the owned sequence.
 
 ******************************************************************
 References
