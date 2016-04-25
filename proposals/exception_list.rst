@@ -22,6 +22,32 @@ D####r# : exception_list
 Motivation
 ******************************************************************
 
+The Parallelism TS specifies ``exception_list``, a class which owns a sequence
+of ``exception_ptr`` objects. ``exception_list`` is used to report exceptions
+that are thrown during the execution of a standard parallel algorithm. As
+specified in [parallel.exceptions.behavior] (N4507 3.1.2):
+
+    During the execution of a standard parallel algorithm, if the invocation of
+    an element access function exits via an uncaught exception, the behavior of
+    the program is determined by the type of execution policy used to invoke the
+    algorithm:
+      - If the execution policy object is of type class
+        parallel_vector_execution_policy, std::terminate shall be called.
+      - If the execution policy object is of type sequential_execution_policy
+        or parallel_execution_policy, the execution of the algorithm exits via
+        an exception. The exception shall be an exception_list containing all
+        uncaught exceptions thrown during the invocations of element access
+        functions, or optionally the uncaught exception if there was only one.
+
+``exception_list`` in the Parallelism TS specifies a query interface, but has
+no interface for constructing and populating the object.
+
+At Jacksonville, there was interest in seeing the ``exception_list`` class from
+the Parallelism TS be elaborated into a more general-purpose and usable type.
+In particular, we want ``exception_list`` to have interfaces for construction
+which make it possible for standard library users to utilize exception_list in
+their own code.
+
 ******************************************************************
 Design
 ******************************************************************
