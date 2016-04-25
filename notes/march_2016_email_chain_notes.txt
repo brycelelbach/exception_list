@@ -14,10 +14,10 @@ ship the exception_list feature correctly.
         * Pro: Existing exception types are immutable.
         * Pro: Negates issues with concurrent access.
     * "no"
-        * Pro: Existing library containers are mutable.
+        * Pro: Existing standard library containers are mutable.
         * Pro: The standard library doesn't currently have a design for
-          immutable containers and we may not have sufficient time before
-          C++17 to explore this design space.
+          immutable containers and we will not have sufficient time before
+          C++17 to fully explore this design space.
         * Pro: A simple, non-concurrent mutable exception_list has decreased
           space and time overhead when compared to an immutable exception_list.
 

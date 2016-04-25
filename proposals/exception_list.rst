@@ -27,6 +27,8 @@ of ``exception_ptr`` objects. ``exception_list`` is used to report exceptions
 that are thrown during the execution of a standard parallel algorithm. As
 specified in [parallel.exceptions.behavior] (N4507 3.1.2):
 
+.. code-block:: none
+
     During the execution of a standard parallel algorithm, if the invocation of
     an element access function exits via an uncaught exception, the behavior of
     the program is determined by the type of execution policy used to invoke the
@@ -38,6 +40,8 @@ specified in [parallel.exceptions.behavior] (N4507 3.1.2):
         an exception. The exception shall be an exception_list containing all
         uncaught exceptions thrown during the invocations of element access
         functions, or optionally the uncaught exception if there was only one.
+
+..
 
 ``exception_list`` in the Parallelism TS specifies a query interface, but has
 no interface for constructing and populating the object.
@@ -52,9 +56,29 @@ their own code.
 Design
 ******************************************************************
 
-******************************************************************
-Concerns
-******************************************************************
+While exploring the design of ``exception_list``, our major question was should 
+``exception_list`` be mutable or immutable after construction. The pros of both
+options are:
+
+* Immutable
+  * Existing exception types are immutable.
+  * An immutable design negates many of our concerns regarding the use of
+    ``exception_list`` in a multi-threaded context.
+
+* Mutable
+  * Existing standard library containers are mutable.
+  * The standard library doesn't currently have a design for immutable
+    containers and we will not have sufficient time before C++17 to full explore
+    this design space.
+  * A simple, non-concurrent mutable ``exception_list`` has decreased space and
+    time overhead when compared to an immutable ``exception_list``.
+
+We decided upon an immutable design. The precedence for immutability in existing
+exception types was the major deciding factor. We did not wish to introduce a 
+new standard exception type which had substantially different semantics from
+existing exception types. Additionally, some of the authors had strong concerns
+about potential data races with ``exception_list`` which are allievated by the
+immutable design.
 
 ******************************************************************
 Specification
