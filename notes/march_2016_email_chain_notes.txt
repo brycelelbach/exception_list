@@ -1,0 +1,39 @@
+* Motivation: At Jacksonville 2016, Alisdair expressed an interest in seeing
+the std::exception_list class from the Parallelism TS be elaborated into
+a more general-purpose and usable type. In particular, we want exception_list to
+have interfaces for construction which make it usable to standard library users.
+At the moment we have a class that has the query interface complete, but has no
+interface for constructing and populating the object.
+
+* Ship Vehicle: Alisdair feels it is important to have this proposal ready for
+C++17. The Parallelism TS is going to ship in 17 so it is important that we
+ship the exception_list feature correctly.
+
+* Design Question: Should exception_list be immutable after construction?
+    * "yes" - Alisdair (concurrency, precedence), Bryce (precedence), Jared (precedence)
+        * Pro: Existing exception types are immutable.
+        * Pro: Negates issues with concurrent access.
+    * "no"
+        * Pro: Existing library containers are mutable.
+        * Pro: The standard library doesn't currently have a design for
+          immutable containers and we may not have sufficient time before
+          C++17 to explore this design space.
+        * Pro: A simple, non-concurrent mutable exception_list has decreased
+          space and time overhead when compared to an immutable exception_list.
+
+* Design Question: If we pick an immutable design, can it be extended in the
+future to be mutable?
+
+* Design Question: Should we omit allocator support?
+
+* Design Question: Should we omit the move-constructor?
+    * "yes" - Bryce
+        * Pro: Negates issues with data races if the move constructor is a
+          modifying operation.
+    * "no"
+        * Pro: Supporting only a 'const &' constructor might be odd for modern
+          C++ programmers.
+
+* Construction Interface:
+    * Start with the list interface.
+    * Add "appending" constructors.
