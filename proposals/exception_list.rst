@@ -76,9 +76,19 @@ options are:
 We decided upon an immutable design. The precedence for immutability in existing
 exception types was the major deciding factor. We did not wish to introduce a 
 new standard exception type which had substantially different semantics from
-existing exception types. Additionally, some of the authors had strong concerns
-about potential data races with ``exception_list`` which are allievated by the
-immutable design.
+existing exception types.
+
+Additionally, some of the authors had strong concerns about potential data
+races with ``exception_list`` which are allievated by the immutable design.  To
+further our goal of picking a design free from thread-safety caveats, we have
+decided to delete the move constructor of ``exception_list``, providing only a
+copy constructor. Although it is outside of the scope of this paper, the authors
+note that ``exception``'s move constructor is not deleted, which we believe risks
+race conditions in catch blocks during multi-threaded execution.
+
+If an immutable ``exception_list`` is shipped, we do not believe it will be
+possible to switch to a mutable design in the future. Such a switch would break
+code (at runtime) that was written assuming that the type was immutable.
 
 ******************************************************************
 Specification
