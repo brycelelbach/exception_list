@@ -3,7 +3,7 @@ D####r# : exception_list
 ===================================================================
 
 :Project: ISO JTC1/SC22/WG21: Programming Language C++
-:Number: D####r#
+:Number: P0322r0
 :Date: 2016-04-24
 :Reply-to: balelbach@lbl.gov
 :Author: Bryce Lelbach 
