@@ -1,0 +1,339 @@
+Jared Hoberock wrote:
+
+Hi Alisdair,
+
+During the Jacksonville C++ meeting, you expressed your desire to see the
+std::exception_list class elaborated into a more usable type. As it stands now,
+std::exception_list may only be generated when parallel algorithms throw
+exceptions. To ensure this wouldn't be an obstacle for parallel algorithms
+standardization, the folks on the CC: line indicated they'd be willing to
+collaborate on a proposal that would enhance the usability of
+std::exception_list for the Oulu meeting.
+
+Do you still feel it's important to see this type elaborated for C++17? If so,
+do you have an idea of the general outline of what a proposal would look like?
+
+Thanks,
+Jared
+
+-------------------------------------------------------------------------------
+
+Alisdair Meredith wrote:
+
+Yes - I think it is important to have a proposal ready for Oulu, if we have
+consensus on what that proposal should look like.
+
+At the moment we have a class that has the query interface complete - the only
+problem I see is constructing and populating the object.
+
+The big question is whether we should construct the object as immutable, or
+provide an API to add additional exception_ptrs to a constructed
+exception_list.  My concern here is that we are clearly designing the class to
+be thrown as an exception, specifically in multithreaded code, and enriching an
+exception object while it is in flight risks data races if it is caught and
+handled in multiple threads at the same time.  So if we do provide a 'insert'
+or 'push' function, it needs to be thread-safe - and I am still not sure how
+well that works for data races between readers and writers.
+
+My preference is to make the object immutable, and provide only constructors.
+If you want to enrich an exception_list object, construct a copy that also has
+the additional exception_ptrs. Copies are reasonable, as the stored exceptions
+are held in 'exception_ptr' objects, which are essentially reference-counted
+pointers, so we are not cloning the exceptions in the list itself, only
+duplicating references.
+
+Other thoughts?
+
+-------------------------------------------------------------------------------
+
+Jared Hoberock wrote:
+
+> My preference is to make the object immutable, and provide only constructors.
+> If you want to enrich an exception_list object, construct a copy that also has
+> the additional exception_ptrs.  Copies are reasonable, as the stored exceptions
+> are held in 'exception_ptr' objects, which are essentially reference-counted
+> pointers, so we are not cloning the exceptions in the list itself, only
+> duplicating references.
+
+Providing only constructors sounds reasonable to me. I assume this course would
+permit the committee (if they desire) to someday in the future introduce
+additional members which would enable mutation, correct? Or do you envision a
+design that would somehow preemptively ban mutation features?
+
+Is there an existing standard container which would provide a good model for
+the kinds of constructors we'd want to provide?
+
+-------------------------------------------------------------------------------
+
+Alisdair Meredith wrote:
+
+I think switching from an immutable to a modifiable type in the future would
+break code (at runtime) that was written assuming the type were immutable.
+
+All of the current standard exception classes are immutable, mostly wrapping a
+null-terminated string that might be copied at construction.
+
+I don't think we have a model for an immutable container, which is why this is
+an interesting design question I would rather have had more than one meeting to
+get right ;)  But we need to land this feature in C++17, so a best-faith effort
+for Oulu, that might attract some NB comments to fix in Issaquah, seems the
+best course to me.
+
+I would certainly like to hear the opinion of others on this topic too though,
+before trying to design an appropriate set of constructor overloads.
+
+To an extent, I might copy the 'list' interface, without any need for allocator
+support, and provide additional overloads taking an 'exception_list' as the
+first parameter - in order to build a larger list.
+
+-------------------------------------------------------------------------------
+
+Jared Hoberock wrote:
+
+Consistency with the other standard exception types seems like an important
+consideration, so I agree that immutability makes sense.
+
+If we draw inspiration from std::list's interface and omit allocator support,
+that would leave us with these constructors:
+
+    template<class InputIterator>
+    exception_list(InputIterator first, InputIterator last);
+
+    exception_list(const exception_list& other);
+
+    exception_list(exception_list&& other);
+
+I assume that neither construction from a count nor construction from an
+initializer_list would make sense for exception_list.
+
+How do others feel about this approach?
+
+-------------------------------------------------------------------------------
+
+Alisdair Meredith wrote:
+
+I suggest we need at least two more constructors:
+
+    template<class InputIterator>
+    exception_list(const exception_list& original,
+                   InputIterator first, InputIterator last);
+
+This allows us to build an exception with a longer list.
+
+But how do we populate the orginal list? Iterator-pairs seem awkward if we
+have only one exception_ptr, so:
+
+    exception_list(exception_ptr exception);
+
+I can imagine using an 'initializer_list<exception_ptr>' as well, and there is
+a general idiom adopted with the initial 'initializer_list' library support
+that any member function taking an iterator-pair should also take an
+initializer_list overload - so probably easier to include (and then strike if
+not needed) than omit it, and add it in later.
+
+My chief concern is the move-constructor. If that is a modifying operation on
+the moved-from exception_list, we risk race conditions in catch blocks again.
+We could support only the 'const &' constructor which would give us true
+immutability, but would be slightly odd for modern eyes.
+
+An even crazier suggestion is to adopt a shared data structure, where each
+'exception_list' stores a shared count on the list that it is cloned from, and
+then adds its own extension in another shared list (with a ref-count of 1).
+Traversing the list would be traversing the segmented (and shared) list
+structure. That seems surprisingly complicated and probably too much of a
+departure from the TS approach, although it seems to give the best performance
+guarantees around the stressful operations in the exception mechanism itself.
+
+Also, if we are promoting immutability, we should delete the assignment
+operators. The standard does not do this for any of the existing exception
+types, but the risk of data races in exception handling was not an issue when
+they were initial created. The ideal would be to delete the assignment
+operator of 'std::exception', but way too late for a change at that level.
+
+-------------------------------------------------------------------------------
+
+Bryce Lelbach wrote:
+
+I seem to recall I volunteered to take initiative on this. I'm happy
+to do the actual proposal write-up once we settle the design
+questions, unless someone else is dead-set on it.
+
+> At the moment we have a class that has the query interface complete - the
+> only problem I see is constructing and populating the object.
+
+Concur.
+
+> My concern here is that we are clearly designing the class to be thrown as an
+> exception, specifically in multithreaded code, and enriching an exception
+> object while it is in flight risks data races if it is caught and handled in
+> multiple threads at the same time.
+
+I understand you in principle, but I don't have a clear picture of
+when this would come up.
+
+Can you give me some concrete examples of why a non-thread-safe
+exception_list would be bad?
+
+When would multiple threads be handling an exception simultaneously?
+Why would there not be a single consumer of the exception?
+
+I believe there are thread safety concerns from the producer side -
+for example, perhaps you'd want to have a team of threads report
+errors concurrently using an exception_list (I'd argue it's the users
+responsibility to protect it in that case).
+
+> My preference is to make the object immutable, and provide only constructors.
+> If you want to enrich an exception_list object, construct a copy that also
+> has the additional exception_ptrs.  Copies are reasonable, as the stored
+> exceptions are held in 'exception_ptr' objects, which are essentially
+> reference-counted pointers, so we are not cloning the exceptions in the list
+> itself, only duplicating references.
+
+This sounds fine with me. Personally I don't care about the
+performance of this mechanism, as it is not on the fast path - I
+wouldn't object to making it immutable in the interest of avoiding
+concurrency issues even if we /were/ copying exceptions. However,
+zero-overhead principal and all, the fact that the copies will be
+reasonable seems like a plus.
+
+> I think switching from an immutable to a modifiable type in the future would
+> break code (at runtime) that was written assuming the type were immutable.
+
+Agreed.
+
+> All of the current standard exception classes are immutable, mostly wrapping a
+> null-terminated string that might be copied at construction.
+
+To me this is a stronger argument for making exception_list immutable
+than the thread safety one.
+
+> I don't think we have a model for an immutable container, which is why this is
+> an interesting design question I would rather have had more than one meeting 
+> to get right ;)  But we need to land this feature in C++17, so a best-faith
+> effort for Oulu, that might attract some NB comments to fix in Issaquah, seems
+> the best course to me.
+
+So we're presumably concerned that if other immutable containers are added to
+the IS, there may be some incompatibilities (because we're rushing this through
+before we have a general design for immutable containers)?
+
+> I suggest we need at least two more constructors:
+>
+>     template<class InputIterator>
+>     exception_list(const exception_list& original,
+>                    InputIterator first, InputIterator last);
+>
+>     exception_list(exception_ptr exception);
+
+In that case, don't we want a "push_back" constructor?
+
+    exception_list(const exception_list& original, exception_ptr e);
+
+> I can imagine using an 'initializer_list<exception_ptr>' as well, and there is
+> a general idiom adopted with the initial 'initializer_list' library support
+> that any member function taking an iterator-pair should also take an
+> initializer_list overload - so probably easier to include (and then strike if
+> not needed) than omit it, and add it in later.
+
+So then we need:
+
+    exception_list(initializer_list<exception_ptr> list);
+
+    exception_list(const exception_list& original,
+                   initializer_list<exception_ptr> list);
+
+> My chief concern is the move-constructor. If that is a modifying operation on
+> the moved-from exception_list, we risk race conditions in catch blocks again.
+> We could support only the 'const &' constructor which would give us true
+> immutability, but would be slightly odd for modern eyes.
+
+Let them eat cake.
+
+> An even crazier suggestion is to adopt a shared data structure, where each
+> 'exception_list' stores a shared count on the list that it is cloned from, and
+> then adds its own extension in another shared list (with a ref-count of 1).
+> Traversing the list would be traversing the segmented (and shared) list
+> structure. That seems surprisingly complicated and probably too much of a
+> departure from the TS approach,
+
+Agreed.
+
+> although it seems to give the best performance guarantees around the stressful
+> operations in the exception mechanism itself.
+
+Not necessarily. Shared count means atomics. Atomics kill memory
+access patterns. It's the standard performance trade off between
+sharing data (avoids copies, incurs synchronization/coherency costs)
+and not sharing data (avoids synchronization/coherency costs, incurs
+copies).
+
+> Also, if we are promoting immutability, we should delete the assignment
+> operators.
+
+With you so far.
+
+> The standard does not do this for any of the existing exception types, but the
+> risk of data races in exception handling was not an issue when they were
+> initial created.  The ideal would be to delete the assignment operator of
+> 'std::exception', but way too late for a change at that level.
+
+Now I'm a bit hesitant. You have a good point, but this seems like a
+larger problem which is outside of our scope here. I suppose I'm fine
+with deleting the assignment operators, but I'm uneasy about it if the
+existing exceptions types do not do this.
+
+--------------------------------------------------------------------------------
+
+Bryce Lelbach wrote:
+
+I just realized my snarkiness was unclear, please forgive me. Clarification:
+
+> > My chief concern is the move-constructor.  If that is a modifying operation
+> > on the moved-from exception_list, we risk race conditions in catch blocks
+> > again.  We could support only the 'const &' constructor which would give us
+> > true immutability, but would be slightly odd for modern eyes.
+>
+> Let them eat cake.
+
+I agree with just supporting the 'const &' constructor and I am not concerned
+about modern eyes with regards to this matter. 
+
+--------------------------------------------------------------------------------
+
+Hartmut Kaiser wrote:
+
+FWIW,
+
+Here is what we ended up implementing for HPX's needs:
+
+https://github.com/STEllAR-GROUP/hpx/blob/master/hpx/exception_list.hpp.
+
+Regards Hartmut
+
+--------------------------------------------------------------------------------
+
+> > My concern here is that we are clearly designing the class to be thrown as
+> > an exception, specifically in multithreaded code, and enriching an exception
+> > object while it is in flight risks data races if it is caught and handled in
+> > multiple threads at the same time.
+>
+> I understand you in principle, but I don't have a clear picture of when this
+> would come up.
+>
+> Can you give me some concrete examples of why a non-thread-safe
+> exception_list would be bad?
+
+I had a similar reaction to the suggestion to make exception_list immutable in
+light of data race concerns as Bryce. Exceptions from parallel algorithms will
+be one application of exception_list, and there will be other applications in
+single-threaded contexts where data races are impossible. On the other hand,
+consistency with the other standard exception classes seems like a strong
+argument in favor of immutability to me.
+
+I don't have a preference on the style of the copy constructor.
+
+Bryce -- do you feel like you have enough information from this thread to put
+together a paper for Oulu?
+
+Jared
+

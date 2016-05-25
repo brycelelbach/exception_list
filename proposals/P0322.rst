@@ -6,15 +6,15 @@ P0322r0 : exception_list
 :Number: P0322r0
 :Date: 2016-04-24
 :Reply-to: balelbach@lbl.gov
-:Author: Bryce Lelbach 
+:Author: Bryce Adelstein Lelbach 
 :Contact: balelbach@lbl.gov
 :Author: Alisdair Meredith
 :Contact: alisdairm@me.com 
 :Author: Jared Hoberock 
 :Contact: jhoberock@nvidia.com 
 :Audience: Library Evolution Working Group (LEWG)
-:Audience: Study Group 1 - Concurrency (SG1) for concurrency concerns and unity with the Parallelism TS 
-:URL: https://github.com/brycelelbach/exception_list/blob/master/proposals/exception_list.rst
+:Audience: Study Group 1 - Concurrency (SG1) for concurrency concerns and integration with the Parallelism TS 
+:URL: https://github.com/brycelelbach/wg21_p0322_exception_list/blob/master/proposals/P0322.rst
 
 .. sectnum::
 
