@@ -14,7 +14,7 @@ P0322r0 : exception_list
 :Contact: jhoberock@nvidia.com 
 :Audience: Library Evolution Working Group (LEWG)
 :Audience: Study Group 1 - Concurrency (SG1) for concurrency concerns and integration with the Parallelism TS 
-:URL: https://github.com/brycelelbach/wg21_p0322_exception_list/blob/master/proposals/P0322.rst
+:URL: https://git.io/vrP2Q 
 
 .. sectnum::
 
@@ -24,23 +24,7 @@ Motivation
 
 The Parallelism TS specifies ``exception_list``, a class which owns a sequence
 of ``exception_ptr`` objects. ``exception_list`` is used to report exceptions
-that are thrown during the execution of a standard parallel algorithm. As
-specified in [parallel.exceptions.behavior] (N4507 3.1.2):
-
-
-    *During the execution of a standard parallel algorithm, if the invocation of
-    an element access function exits via an uncaught exception, the behavior of
-    the program is determined by the type of execution policy used to invoke the
-    algorithm:*
-
-      - *If the execution policy object is of type class
-        parallel_vector_execution_policy, std::terminate shall be called.*
-      - *If the execution policy object is of type sequential_execution_policy
-        or parallel_execution_policy, the execution of the algorithm exits via
-        an exception. The exception shall be an exception_list containing all
-        uncaught exceptions thrown during the invocations of element access
-        functions, or optionally the uncaught exception if there was only one.*
-
+that are thrown during the execution of a standard parallel algorithm.
 ``exception_list`` in the Parallelism TS specifies a query interface, but has
 no interface for constructing and populating the object.
 
@@ -80,6 +64,8 @@ existing exception types.
 
 Additionally, some of the authors had strong concerns about potential data
 races with ``exception_list`` which are allievated by the immutable design.
+An immutable ``exception_list`` would be a persistent structure (e.g. older
+versions of the container would be preserved on "insertion" or "removal).
 
 .. To further our goal of picking a design free from thread-safety caveats, we
    have decided to delete the move constructor of ``exception_list``, providing
@@ -87,6 +73,13 @@ races with ``exception_list`` which are allievated by the immutable design.
    the authors note that ``exception``'s move constructor is not deleted, which
    we believe risks race conditions in catch blocks during multi-threaded
    execution.
+
+A reference-counted tree-like structure can be used to implement our immutable
+``exception_list``, similar to the implementation of immutable sequences via
+`2-3 finger trees <http://www.staff.city.ac.uk/~ross/papers/FingerTree.html>`_
+in languages such as Haskell. Such structures allow for constant time access to
+and insertion at the ends of the sequence and logarthmic time splitting and
+concatenation. 
 
 If an immutable ``exception_list`` is shipped, we do not believe it will be
 possible to switch to a mutable design in the future. Such a switch would break
@@ -113,12 +106,11 @@ Specification
 
       exception_list(const exception_list& other);
 
-      exception_list(exception_list&& other) noexcept;
+      exception_list(exception_list&&) = delete;
 
       // "push_back" constructors
       exception_list(exception_ptr e);
       exception_list(const exception_list& other, exception_ptr e);
-      exception_list(exception_list&& other, exception_ptr e);
 
       // iterator-pair "insert" constructors 
       template <class InputIterator>
@@ -126,22 +118,15 @@ Specification
       template <class InputIterator>
       exception_list(const exception_list& other,
                      InputIterator first, InputIterator last);
-      template <class InputIterator>
-      exception_list(exception_list&& other,
-                     InputIterator first, InputIterator last);
 
       // initializer-list "insert" constructors 
       exception_list(initializer_list<exception_ptr> list);
       exception_list(const exception_list& other,
                      initializer_list<exception_ptr> list);
-      exception_list(exception_list&& other,
-                     initializer_list<exception_ptr> list);
 
-      // "splice" constructors
-      exception_list(const exception_list& copy_from,
-                     exception_list&& transfer_from); 
-      exception_list(exception_list&& move_from,
-                     exception_list&& transfer_from) noexcept; 
+      // "splice" constructor
+      exception_list(const exception_list& other0,
+                     const exception_list& other1) noexcept; 
 
       /////////////////////////////////////////////////////////////////////////
       // QUERY INTERFACE 
@@ -163,8 +148,6 @@ Specification
 
 ..
 
-FIXME: Exception gurantees for the constructors that can throw.
-
 The class ``exception_list`` owns a sequence of ``exception_ptr`` objects.
 
 The type ``exception_list::iterator`` shall fulfill the requirements of
@@ -183,6 +166,8 @@ large enough to represent the size of the sequence.
   as ``other``.
 
   *Complexity*: Linear time in the size of ``other``.
+
+  *Complexity*: Constant time. 
 
 ``exception_list(exception_list&& other) noexcept;``
 
@@ -204,13 +189,8 @@ large enough to represent the size of the sequence.
 
   *Complexity*: Linear in the size of ``other`` + 1.
 
-``exception_list(exception_list&& other, exception_ptr e);``
+  *Complexity*: Constant time. 
 
-  *Effect*: Move construct a new ``exception_list`` from ``other``, and append
-  ``e`` to the end of the owned sequence.
-
-  *Complexity*: Linear in the size of ``other`` + 1.
-  
 ``template<class InputIterator>``
 
 ``exception_list(InputIterator first, InputIterator last);``
@@ -230,19 +210,7 @@ large enough to represent the size of the sequence.
   *Effect*: Construct a new ``exception_list`` which is a copy of ``other``,
   and append the range ``[first, last)`` to the end of the owned sequence.
 
-  *Complexity*: Linear in the size of ``other`` + ``distance(first, last)``.
-
-  *Remarks*: This constructor shall not participate in overload resolution if
-  ``is_convertible_v<InputIterator::value_type, exception_ptr> == false``.
-
-``template<class InputIterator>``
-
-``exception_list(exception_list&& other, InputIterator first, InputIterator last);``
-
-  *Effect*: Move construct a new ``exception_list`` from ``other``, and append 
-  the range ``[first, last)`` to the end of the owned sequence.
-
-  *Complexity*: Linear in the size of ``other`` + ``distance(first, last)``.
+  *Complexity*: Linear in ``distance(first, last)``.
 
   *Remarks*: This constructor shall not participate in overload resolution if
   ``is_convertible_v<InputIterator::value_type, exception_ptr> == false``.
@@ -259,34 +227,14 @@ large enough to represent the size of the sequence.
   *Effect*: Construct a new ``exception_list`` which is a copy of ``other``,
   and append ``list`` to the end of the owned sequence.
 
-  *Complexity*: Linear in the size of ``other`` + the size of ``list``.
+  *Complexity*: Linear in the size of ``list``.
 
-``exception_list(exception_list&& other, initializer_list<exception_ptr> list);``
+``exception_list(const exception_list& other0, const exception_list& other1);``
 
-  *Effect*: Move construct a new ``exception_list`` from ``other``, and append
-  ``list`` to the end of the owned sequence.
+  *Effect*: Construct a new ``exception_list`` which contains all the elements
+  of ``other0`` followed by all the elements of ``other1``.
 
-  *Complexity*: Linear in the size of ``other`` + the size of ``list``.
-
-``exception_list(const exception_list& copy_from, exception_list&& transfer_from);``
-
-  *Effect*: Construct a new ``exception_list`` which is a copy of ``copy_from``,
-  and transfer all elements from ``transfer_from`` to the end of the owned
-  sequence. ``transfer_from`` is left in an empty state.
-
-  *Complexity*: Linear in the size of ``copy_from``.
-
-  *Remarks*: The behavior is undefined if ``this == &transfer_from``.
-
-``exception_list(exception_list&& move_from, exception_list&& transfer_from) noexcept;``
-
-  *Effect*: Move construct a new ``exception_list`` from ``copy_from``, and
-  transfer all elements from ``transfer_from`` to the end of the owned
-  sequence. ``transfer_from`` is left in an empty state.
-
-  *Complexity*: Constant time. 
-
-  *Remarks*: The behavior is undefined if ``this == &transfer_from``.
+  *Complexity*: Logarthmic in the ``min(other0.size(), other1.size())``.
 
 ``size_type size() const noexcept;``
 
@@ -312,11 +260,4 @@ large enough to represent the size of the sequence.
 
   *Returns*: An implementation-defined NTBS.
 
-******************************************************************
-Examples
-******************************************************************
-
-******************************************************************
-References
-******************************************************************
 
