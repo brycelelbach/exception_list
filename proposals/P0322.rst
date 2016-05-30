@@ -63,7 +63,7 @@ new standard exception type which had substantially different semantics from
 existing exception types.
 
 Additionally, some of the authors had strong concerns about potential data
-races with ``exception_list`` which are allievated by the immutable design.
+races with ``exception_list`` which are alleviated by the immutable design.
 An immutable ``exception_list`` would be a persistent structure (e.g. older
 versions of the container would be preserved on "insertion" or "removal).
 
@@ -78,19 +78,27 @@ A reference-counted tree-like structure can be used to implement our immutable
 ``exception_list``, similar to the implementation of immutable sequences via
 `2-3 finger trees <http://www.staff.city.ac.uk/~ross/papers/FingerTree.html>`_
 in languages such as Haskell. Such structures allow for constant time access to
-and insertion at the ends of the sequence and logarthmic time splitting and
+and insertion at the ends of the sequence and logarithmic time splitting and
 concatenation. 
 
 If an immutable ``exception_list`` is shipped, we do not believe it will be
 possible to switch to a mutable design in the future. Such a switch would break
 code (at runtime) that was written assuming that the type was immutable.
 
+A draft specification for an immutable ``exception_list`` with a constructor-based
+interface for concatenation. We have deleted the move constructor and move assignment operator;
+these operations seem nonsensical for an immutable, persistent data structure
+where copying is cheap and moving would have to leave the moved-from object in
+an unchanged state (otherwise, it would no longer be truly immutable and thus
+would be susceptible to thread-safety issues).
+
+Note that complexity guarantees in the below specification are based on a
+theoretical implementation using 2-3 finger trees.
+
 ******************************************************************
 Specification
 ******************************************************************
 
-**NOTE:** Complexity gurantees are based on a theoretical implementation using
-2-3 finger trees.
 
 .. code-block:: c++
 
@@ -108,10 +116,10 @@ Specification
       constexpr exception_list() noexcept = default; 
 
       exception_list(const exception_list& other);
-      exception_list(exception_list&& other);
-
       exception_list& operator=(const exception_list& other);
-      exception_list& operator=(exception_list&& other);
+
+      exception_list(exception_list&&) = delete
+      exception_list& operator=(exception_list&&) = delete;
 
       // "push_back" constructors
       exception_list(exception_ptr e);
@@ -176,15 +184,6 @@ large enough to represent the size of the sequence.
 
   *Complexity*: Constant time. 
 
-``exception_list(exception_list&& other) noexcept;``
-
-  *Effect*: Move construct a new ``exception_list`` from ``other``. 
-
-  *Complexity*: Constant time.
-
-  *Remarks*: ``other`` should be left unchanged, since ``exception_list`` is
-  immutable.
-
 ``exception_list& operator=(const exception_list& other);``
 
   *Effect*: Copy the contents of ``other`` into this ``exception_list``. 
@@ -192,24 +191,6 @@ large enough to represent the size of the sequence.
   *Complexity*: Linear time in the size of ``other``.
 
   *Complexity*: Constant time. 
-
-``exception_list& operator=(exception_list&& other) noexcept;``
-
-  *Effect*: Move the contents of ``other`` into this ``exception_list``. 
-
-  *Complexity*: Constant time.
-
-  *Remarks*: ``other`` should be left unchanged, since ``exception_list`` is
-  immutable.
-
-``exception_list(exception_list&& other) noexcept;``
-
-  *Effect*: Move construct a new ``exception_list`` from ``other``. 
-
-  *Complexity*: Constant time.
-
-  *Remarks*: ``other`` should be left unchanged, since ``exception_list`` is
-  immutable.
 
 ``exception_list(exception_ptr e);``
 
