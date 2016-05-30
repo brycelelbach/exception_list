@@ -89,6 +89,9 @@ code (at runtime) that was written assuming that the type was immutable.
 Specification
 ******************************************************************
 
+**NOTE:** Complexity gurantees are based on a theoretical implementation using
+2-3 finger trees.
+
 .. code-block:: c++
 
   namespace std {
@@ -105,14 +108,19 @@ Specification
       constexpr exception_list() noexcept = default; 
 
       exception_list(const exception_list& other);
+      exception_list(exception_list&& other);
 
-      exception_list(exception_list&&) = delete;
+      exception_list& operator=(const exception_list& other);
+      exception_list& operator=(exception_list&& other);
 
       // "push_back" constructors
       exception_list(exception_ptr e);
       exception_list(const exception_list& other, exception_ptr e);
 
       // iterator-pair "insert" constructors 
+      exception_list(iterator first, iterator last);
+      exception_list(const exception_list& other,
+                     iterator first, iterator last);
       template <class InputIterator>
       exception_list(InputIterator first, InputIterator last);
       template <class InputIterator>
@@ -163,7 +171,6 @@ large enough to represent the size of the sequence.
 ``exception_list(const exception_list& other);``
 
   *Effect*: Construct a new ``exception_list`` which is a copy of ``other``. 
-  as ``other``.
 
   *Complexity*: Linear time in the size of ``other``.
 
@@ -174,6 +181,35 @@ large enough to represent the size of the sequence.
   *Effect*: Move construct a new ``exception_list`` from ``other``. 
 
   *Complexity*: Constant time.
+
+  *Remarks*: ``other`` should be left unchanged, since ``exception_list`` is
+  immutable.
+
+``exception_list& operator=(const exception_list& other);``
+
+  *Effect*: Copy the contents of ``other`` into this ``exception_list``. 
+
+  *Complexity*: Linear time in the size of ``other``.
+
+  *Complexity*: Constant time. 
+
+``exception_list& operator=(exception_list&& other) noexcept;``
+
+  *Effect*: Move the contents of ``other`` into this ``exception_list``. 
+
+  *Complexity*: Constant time.
+
+  *Remarks*: ``other`` should be left unchanged, since ``exception_list`` is
+  immutable.
+
+``exception_list(exception_list&& other) noexcept;``
+
+  *Effect*: Move construct a new ``exception_list`` from ``other``. 
+
+  *Complexity*: Constant time.
+
+  *Remarks*: ``other`` should be left unchanged, since ``exception_list`` is
+  immutable.
 
 ``exception_list(exception_ptr e);``
 
@@ -191,7 +227,21 @@ large enough to represent the size of the sequence.
 
   *Complexity*: Constant time. 
 
-``template<class InputIterator>``
+``exception_list(iterator first, iterator last);``
+
+  *Effect*: Construct a new ``exception_list`` which contains
+  ``distance(first, last)`` elements from the range ``[first, last)``.
+
+  *Complexity*: Logarthmic in ``distance(first, last)``.
+
+``exception_list(const exception_list& other, iterator first, iterator last);``
+
+  *Effect*: Construct a new ``exception_list`` which is a copy of ``other``,
+  and append the range ``[first, last)`` to the end of the owned sequence.
+
+  *Complexity*: Logarthmic in ``min(other.size(), distance(first, last))``.
+
+``template <class InputIterator>``
 
 ``exception_list(InputIterator first, InputIterator last);``
 
@@ -203,7 +253,7 @@ large enough to represent the size of the sequence.
   *Remarks*: This constructor shall not participate in overload resolution if
   ``is_convertible_v<InputIterator::value_type, exception_ptr> == false``.
 
-``template<class InputIterator>``
+``template <class InputIterator>``
 
 ``exception_list(const exception_list& other, InputIterator first, InputIterator last);``
 
@@ -259,5 +309,4 @@ large enough to represent the size of the sequence.
 ``const char* what() const noexcept override;``
 
   *Returns*: An implementation-defined NTBS.
-
 
